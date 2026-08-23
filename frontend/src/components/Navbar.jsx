@@ -1,23 +1,31 @@
-function Navbar({ page, onNavigate }) {
+function Navbar({ page, onNavigate, serverOnline }) {
   return (
-    <nav className="navbar">
-      <div className="navbar-brand">🎵 MusicApp</div>
-      <div className="navbar-links">
+    <header className="navbar">
+      <div className="navbar-brand" onClick={() => onNavigate("landing")} style={{ cursor: "pointer" }}>
+        <div className="brand-icon">🎧</div>
+        <span>SoundVault</span>
+        <span className="status-badge">
+          <span className="status-dot"></span>
+          {serverOnline ? "API Online" : "Connecting..."}
+        </span>
+      </div>
+      <nav className="navbar-links">
         <button
-          className={page === "home" ? "active" : ""}
-          onClick={() => onNavigate("home")}
+          className={`nav-btn ${page === "landing" ? "active" : ""}`}
+          onClick={() => onNavigate("landing")}
         >
-          Home
+          <span>⚡</span> Downloader
         </button>
         <button
-          className={page === "library" ? "active" : ""}
+          className={`nav-btn ${page === "library" ? "active" : ""}`}
           onClick={() => onNavigate("library")}
         >
-          Library
+          <span>🎵</span> Library
         </button>
-      </div>
-    </nav>
+      </nav>
+    </header>
   );
 }
 
 export default Navbar;
+

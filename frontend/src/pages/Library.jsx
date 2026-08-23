@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
-import { getLibrary, removeSong } from "../api";
-import SongCard from "../components/SongCard";
+import { getLibrary, getStreamUrl } from "../api";
 
-function Library() {
+function Library({ onNavigateToLanding }) {
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [removingId, setRemovingId] = useState(null);
-  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     loadLibrary();
@@ -14,50 +12,94 @@ function Library() {
 
   const loadLibrary = async () => {
     setLoading(true);
+    setError("");
     try {
       const data = await getLibrary();
       setSongs(data);
     } catch (err) {
-      setMessage("Failed to load your library.");
+      setError("Failed to load your music library. Make sure the backend server is running.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRemove = async (id) => {
-    setRemovingId(id);
-    try {
-      await removeSong(id);
-      setSongs((prev) => prev.filter((s) => s.id !== id));
-    } catch (err) {
-      setMessage("Failed to remove that song.");
-    } finally {
-      setRemovingId(null);
-    }
-  };
-
   return (
-    <div className="page">
-      <h1>Your Library</h1>
-      {loading && <p className="message">Loading...</p>}
-      {message && <p className="message">{message}</p>}
-      {!loading && songs.length === 0 && (
-        <p className="message">No songs downloaded yet — head to Home and search for something.</p>
+    <div className="library-page">
+      <div className="section-title" style={{ marginTop: "1rem" }}>
+        <div>
+          <h2>Your Downloaded Library</h2>
+          <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: "normal", marginTop: "0.2rem" }}>
+            All MP3 files saved in your target music directory.
+          </p>
+        </div>
+        <button className="action-btn" onClick={loadLibrary} disabled={loading}>
+          🔄 Refresh
+        </button>
+      </div>
+
+      {loading && (
+        <div className="status-box loading">
+          <div className="status-header">
+            <span className="spinner"></span>
+            <span>Loading library files...</span>
+          </div>
+        </div>
       )}
 
-      <div className="song-list">
-        {songs.map((song) => (
-          <SongCard
-            key={song.id}
-            song={song}
-            actionLabel={removingId === song.id ? "Removing..." : "Remove"}
-            disabled={removingId === song.id}
-            onAction={() => handleRemove(song.id)}
-          />
-        ))}
-      </div>
+      {error && (
+        <div className="status-box error">
+          <div className="status-header">
+            <span>⚠️</span>
+            <span>{error}</span>
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && songs.length === 0 && (
+        <div className="empty-state">
+          <div style={{ fontSize: "2.5rem" }}>🎵</div>
+          <h3>No Songs Downloaded Yet</h3>
+          <p>Head over to the Downloader landing page and type a song name to download music.</p>
+          <button
+            className="submit-btn"
+            style={{ marginTop: "1.5rem" }}
+            onClick={onNavigateToLanding}
+          >
+            Go to Downloader →
+          </button>
+        </div>
+      )}
+
+      {!loading && songs.length > 0 && (
+        <div className="song-list">
+          {songs.map((song) => (
+            <div key={song.id} className="song-card">
+              <div className="song-left">
+                <div className="song-disc">🎧</div>
+                <div className="song-details">
+                  <div className="song-name">{song.title}</div>
+                  <div className="song-meta">
+                    {(song.size_bytes / (1024 * 1024)).toFixed(2)} MB • {new Date(song.created_at * 1000).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+              <div className="song-actions">
+                <audio controls src={getStreamUrl(song.filename)} style={{ height: "36px", maxWidth: "250px" }} />
+                <a
+                  href={getStreamUrl(song.filename)}
+                  download={song.filename}
+                  className="action-btn"
+                >
+                  ⬇ Save
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 export default Library;
+

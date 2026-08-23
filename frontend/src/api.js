@@ -1,4 +1,5 @@
-const API_BASE = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api`;
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = `${BASE_URL}/api`;
 
 async function handleResponse(res) {
   if (!res.ok) {
@@ -7,24 +8,20 @@ async function handleResponse(res) {
       const data = await res.json();
       detail = data.detail || detail;
     } catch {
-      // response wasn't JSON — keep the generic message
+      detail = `Server error (${res.status})`;
     }
     throw new Error(detail);
   }
   return res.json();
 }
 
-export async function searchSongs(query) {
-  const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+export async function checkServerStatus() {
+  const res = await fetch(`${BASE_URL}/`);
   return handleResponse(res);
 }
 
-export async function downloadSong(song) {
-  const res = await fetch(`${API_BASE}/download`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(song),
-  });
+export async function downloadMusic(title) {
+  const res = await fetch(`${API_BASE}/download-music?title=${encodeURIComponent(title)}`);
   return handleResponse(res);
 }
 
@@ -33,7 +30,7 @@ export async function getLibrary() {
   return handleResponse(res);
 }
 
-export async function removeSong(id) {
-  const res = await fetch(`${API_BASE}/library/${id}`, { method: "DELETE" });
-  return handleResponse(res);
+export function getStreamUrl(filename) {
+  return `${API_BASE}/stream/${encodeURIComponent(filename)}`;
 }
+
