@@ -1,15 +1,20 @@
 import asyncio
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import os
-import glob
+import logging
 from dotenv import load_dotenv
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 load_dotenv()   
-DOWNLOAD_DIR = os.getenv("music_dir") or os.getenv("music") or "./downloads"
+
+DOWNLOAD_DIR = os.getenv("music_dir") or "./downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 app = FastAPI(title="PP1 Music API")
@@ -45,12 +50,20 @@ async def download_music(title: Optional[str] = Query(None), body: Optional[Down
         )
 
     clean_title = query_title.strip()
+    
+
+    output_template = os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s")
+    
     cmd = [
-        "spotdl",
-        "download",
-        clean_title,
-        "--output", f"{DOWNLOAD_DIR}/{{artists}} - {{title}}.{{output-ext}}",
-        "--format", "mp3"
+        "yt-dlp",
+        f"ytsearch1:{clean_title}",
+        "-x",
+        "--audio-format", "mp3",
+        "--audio-quality", "0",  # Best quality
+        "--output", output_template,
+        "--embed-thumbnail",
+        "--add-metadata",
+        "--no-playlist"
     ]
     
     try:
@@ -63,14 +76,16 @@ async def download_music(title: Optional[str] = Query(None), body: Optional[Down
         
         if process.returncode != 0:
             err_msg = stderr.decode().strip() or stdout.decode().strip()
+            logger.error(f"yt-dlp failed for '{clean_title}': {err_msg}")
             raise HTTPException(
                 status_code=500, 
-                detail=f"spotDL execution failed: {err_msg}"
+                detail=f"yt-dlp execution failed: {err_msg}"
             )
+            
     except FileNotFoundError:
         raise HTTPException(
             status_code=500,
-            detail="spotDL command line tool is not installed or not in PATH."
+            detail="yt-dlp executable is not installed or not found in PATH."
         )
         
     return {
@@ -80,35 +95,35 @@ async def download_music(title: Optional[str] = Query(None), body: Optional[Down
         "download_dir": DOWNLOAD_DIR
     }
 
-@app.get("/api/library")
-def get_library():
-    """List all downloaded MP3 songs in the download directory."""
-    if not os.path.exists(DOWNLOAD_DIR):
-        return []
-    
-    files = glob.glob(os.path.join(DOWNLOAD_DIR, "*.mp3"))
-    songs = []
-    for f in files:
-        filename = os.path.basename(f)
-        stat = os.stat(f)
-        songs.append({
-            "id": filename,
-            "filename": filename,
-            "title": os.path.splitext(filename)[0],
-            "size_bytes": stat.st_size,
-            "created_at": stat.st_mtime
-        })
-    return songs
+async def process_batch_downloads(songs: List[str]):
+    for song_title in songs:
+        try:
+            logger.info(f"Downloading {song_title}")
+            await download_music(title=song_title)
+        except Exception as e:
+            logger.error(f"Failed to download {song_title}: {e}")
 
-@app.get("/api/stream/{filename}")
-def stream_song(filename: str):
-    """Stream or download a specific audio file."""
-    file_path = os.path.join(DOWNLOAD_DIR, filename)
-    if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path, media_type="audio/mpeg", filename=filename)
+@app.get("/api/temp")
+@app.post("/api/temp")
+async def temp(background_tasks: BackgroundTasks):
+    popular_songs = [
+        "I Just Might",
+        "The Fate of Ophelia",
+        "Golden",
+        "Ordinary",
+        "Choosin' Texas",
+        "Die with a Smile",
+        "End of Beginning",
+        "Aperture",
+        "Drop Dead",
+        "Stateside"
+    ]
+    background_tasks.add_task(process_batch_downloads, popular_songs)
+    return {
+        "status": "success",
+        "message": "Batch download started in background for 10 popular songs."
+    }
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
-
