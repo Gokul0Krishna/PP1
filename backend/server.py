@@ -95,33 +95,18 @@ async def download_music(title: Optional[str] = Query(None), body: Optional[Down
         "download_dir": DOWNLOAD_DIR
     }
 
-async def process_batch_downloads(songs: List[str]):
-    for song_title in songs:
-        try:
-            logger.info(f"Downloading {song_title}")
-            await download_music(title=song_title)
-        except Exception as e:
-            logger.error(f"Failed to download {song_title}: {e}")
 
-@app.get("/api/temp")
-@app.post("/api/temp")
-async def temp(background_tasks: BackgroundTasks):
-    popular_songs = [
-        "I Just Might",
-        "The Fate of Ophelia",
-        "Golden",
-        "Ordinary",
-        "Choosin' Texas",
-        "Die with a Smile",
-        "End of Beginning",
-        "Aperture",
-        "Drop Dead",
-        "Stateside"
-    ]
-    background_tasks.add_task(process_batch_downloads, popular_songs)
+@app.get("/api/scan")
+@app.scan("/api/scan")
+async def scan():
+    if not os.path.exists(DOWNLOAD_DIR):
+        return {
+            "status": "not found"
+        }
+    files = os.listdir(DOWNLOAD_DIR)
     return {
-        "status": "success",
-        "message": "Batch download started in background for 10 popular songs."
+        "status": "ok",
+        "files": files
     }
 
 if __name__ == "__main__":
