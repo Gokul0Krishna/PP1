@@ -107,32 +107,16 @@ def convert_mp3_to_xyz(mp3_path: str, xyz_path: str, sample_step: int = 100):
     """
     # Load audio file (y = audio time series, sr = sampling rate)
     y, sr = librosa.load(mp3_path, sr=None)
-    
-    # Compute Short-Time Fourier Transform (STFT) for frequency extraction
-    stft = np.abs(librosa.stft(y))
-    frequencies = librosa.fft_frequencies(sr=sr)
-    
-    # Map dominant frequency per frame
-    dominant_frequencies = frequencies[np.argmax(stft, axis=0)]
-    
-    # Downsample points to keep .xyz file sizes manageable
-    y_sampled = y[::sample_step]
-    
-    points = []
-    num_frames = len(dominant_frequencies)
-    
+    duration = librosa.get_duration(y=y, sr=sr)
+    hop_length = int(sr * segment_duration)
+    spectral_centroids = librosa.feature.spectral_centroid(
+                            y=y, sr=sr, hop_length=hop_length
+                            )[0]
+    rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
+    zcr = librosa.feature.zero_crossing_rate(y=y, hop_length=hop_length)[0]
     with open(xyz_path, "w") as f:
-        for idx, amplitude in enumerate(y_sampled):
-            # Calculate corresponding time in seconds (X)
-            time_sec = (idx * sample_step) / sr
-            
-            # Estimate frequency bin for the given time frame (Z)
-            frame_idx = min(int((time_sec / (len(y) / sr)) * num_frames), num_frames - 1)
-            freq_hz = dominant_frequencies[frame_idx]
-            
-            # X = Time, Y = Amplitude, Z = Dominant Frequency
-            f.write(f"{time_sec:.4f} {amplitude:.6f} {freq_hz:.2f}\n")
-
+        for i in range(len(rms)):
+            f.write(f"{spectral_centroids[i]:.2f} {rms[i]:.6f} {zcr[i]:.4f}\n")
 @app.get("/api/scan")
 @app.post("/api/scan")
 async def scan():
